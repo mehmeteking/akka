@@ -20,7 +20,7 @@ class SourceSpec extends AkkaSpec {
 
   "Singleton Source" must {
     "produce element" in {
-      val p = Source.single(1).runWith(Sink.publisher)
+      val p = Source.single(1).runWith(Sink.publisher())
       val c = StreamTestKit.SubscriberProbe[Int]()
       p.subscribe(c)
       val sub = c.expectSubscription()
@@ -30,7 +30,7 @@ class SourceSpec extends AkkaSpec {
     }
 
     "produce elements to later subscriber" in {
-      val p = Source.single(1).runWith(Sink.publisher)
+      val p = Source.single(1).runWith(Sink.publisher())
       val c1 = StreamTestKit.SubscriberProbe[Int]()
       val c2 = StreamTestKit.SubscriberProbe[Int]()
       p.subscribe(c1)
@@ -50,34 +50,34 @@ class SourceSpec extends AkkaSpec {
 
   "Empty Source" must {
     "complete immediately" in {
-      val p = Source.empty.runWith(Sink.publisher)
+      val p = Source.empty.runWith(Sink.publisher())
       val c = StreamTestKit.SubscriberProbe[Int]()
       p.subscribe(c)
-      c.expectSubscriptionAndComplete()
+      c.expectComplete()
 
       val c2 = StreamTestKit.SubscriberProbe[Int]()
       p.subscribe(c2)
-      c2.expectSubscriptionAndComplete()
+      c2.expectComplete()
     }
   }
 
   "Failed Source" must {
     "emit error immediately" in {
       val ex = new RuntimeException with NoStackTrace
-      val p = Source.failed(ex).runWith(Sink.publisher)
+      val p = Source.failed(ex).runWith(Sink.publisher())
       val c = StreamTestKit.SubscriberProbe[Int]()
       p.subscribe(c)
-      c.expectSubscriptionAndError(ex)
+      c.expectError(ex)
 
       val c2 = StreamTestKit.SubscriberProbe[Int]()
       p.subscribe(c2)
-      c2.expectSubscriptionAndError(ex)
+      c2.expectError(ex)
     }
   }
 
   "Lazy Empty Source" must {
     "complete materialized future when stream cancels" in {
-      val neverSource = Source.lazyEmpty
+      val neverSource = Source.lazyEmpty()
       val pubSink = Sink.publisher
 
       val (f, neverPub) = neverSource.toMat(pubSink)(Keep.both).run()
@@ -94,7 +94,7 @@ class SourceSpec extends AkkaSpec {
     }
 
     "allow external triggering of completion" in {
-      val neverSource = Source.lazyEmpty[Int]
+      val neverSource = Source.lazyEmpty[Int]()
       val counterSink = Sink.fold[Int, Int](0) { (acc, _) ⇒ acc + 1 }
 
       val (neverPromise, counterFuture) = neverSource.toMat(counterSink)(Keep.both).run()
@@ -107,7 +107,7 @@ class SourceSpec extends AkkaSpec {
     }
 
     "allow external triggering of onError" in {
-      val neverSource = Source.lazyEmpty
+      val neverSource = Source.lazyEmpty()
       val counterSink = Sink.fold[Int, Int](0) { (acc, _) ⇒ acc + 1 }
 
       val (neverPromise, counterFuture) = neverSource.toMat(counterSink)(Keep.both).run()
@@ -160,9 +160,16 @@ class SourceSpec extends AkkaSpec {
   "Repeat Source" must {
     "repeat as long as it takes" in {
       import FlowGraph.Implicits._
-      val result = Await.result(Source.repeat(42).grouped(10000).runWith(Sink.head), 1.second)
+      val result = Await.result(Source.repeat(42).grouped(10000).runWith(Sink.head()), 1.second)
       result.size should ===(10000)
       result.toSet should ===(Set(42))
+    }
+  }
+
+  "Iterator Source" must {
+    "properly iterate" in {
+      val result = Await.result(Source(() ⇒ Iterator.iterate(false)(!_)).grouped(10).runWith(Sink.head()), 1.second)
+      result should ===(Seq(false, true, false, true, false, true, false, true, false, true))
     }
   }
 
